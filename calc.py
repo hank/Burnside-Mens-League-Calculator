@@ -1,3 +1,4 @@
+import sys
 import math
 import pprint
 import csv
@@ -5,8 +6,9 @@ from openpyxl import load_workbook
 from argparse import ArgumentParser
 
 def mean(numbers):
+    # print(numbers)
     s = float(sum(numbers))
-    print(f"SUM: {s}")
+    # print(f"SUM: {s}")
     return s / max(len(numbers), 1)
 
 def trunc_float(f, n):
@@ -42,6 +44,7 @@ def avg_course_index(lowest_scores):
 
 parser = ArgumentParser()
 parser.add_argument("spreadsheet")
+parser.add_argument("-o", metavar="output", help="If provided, output to this file. Otherwise, overwrite the original")
 args = parser.parse_args()
 
 # Run formulas the first time to get things like diff
@@ -60,57 +63,75 @@ header_row = False
 score_rows = False
 final_players = {}
 pp = pprint.PrettyPrinter(indent=4)
-for r in players_data:
-    # print(f"Row: {[x.value for x in r]}")
-    if header_row:
-        # print("Header row")
-        header_row = False
-        score_rows = True
-    elif data_row:
-        # Pull in player data
-        # player_data = [x.value for x in r[4:9]]
-        player_data = list(["{}{}".format(x.column, x.row) for x in r[4:9]])
-        print(f"Player data: {player_data}")
-        data_row = False
-        header_row = True
-    elif r[4].value == "Handicap":
-        # We have a new player
-        player = r[1].value
-        print(f"New player: {player}")
-        # print([x.value for x in r])
-        data_row = True
-    elif score_rows and r[1].value is None:
-        # print(f"Finished scores for {player}")
-        # Calculate new values
-        sorted_by_score = sorted(scores, key=lambda x: x[4])
-        differentials = [x[8] for x in sorted_by_score]
-        print(f"Diffs:")
-        pp.pprint(differentials)
-        ai = avg_course_index(differentials)
-        print(f"Avg Course Index: {ai}")
-        hc = calc_handicap(ai)
-        print(f"Handicap: {hc}")
-        # TODO: Save off new values for player
-        final_players[player] = {
-            player_data[0]: hc,
-            player_data[1]: ai
-        }
-        # Clear data for next player
-        player = None
-        score_rows = False
-        scores = []
-    elif score_rows:
-        # Scores
-        # print(f"Scores: {[x.value for x in r]}")
-        scores.append([x.value for x in r])
-    else:
-        pass
+try:
+    for r in players_data:
+        # print(f"Row: {[x.value for x in r]}")
+        if header_row:
+            # print("Header row")
+            header_row = False
+            score_rows = True
+        elif data_row:
+            # Pull in player data
+            player_data = [x.value for x in r[4:9]]
+            player_data = list(["{}{}".format(x.column, x.row) for x in r[4:9]])
+            # print(f"Player data: {player_data}")
+            data_row = False
+            header_row = True
+        elif r[4].value == "Handicap":
+            # We have a new player
+            player = r[1].value
+            print(f"Processing player: {player}")
+            # print([x.value for x in r])
+            data_row = True
+        elif score_rows and r[1] is not None and r[1].value is None:
+            # print(f"Finished scores for {player}")
+            # First, if there are more than 20 scores, find the
+            # 20 most recent
+            if len(scores) > 20:
+                sorted_by_date = sorted(scores, key=lambda x: x[1])
+                scores = sorted_by_date[0:20]
+            # Calculate new values
+            sorted_by_score = sorted(scores, key=lambda x: x[4])
+            differentials = [x[8] for x in sorted_by_score]
+            # print(f"Diffs:")
+            # pp.pprint(differentials)
+            ai = avg_course_index(differentials)
+            # print(f"Avg Course Index: {ai}")
+            hc = calc_handicap(ai)
+            # print(f"Handicap: {hc}")
+            # TODO: Save off new values for player
+            final_players[player] = {
+                player_data[0]: hc,
+                player_data[1]: ai
+            }
+            # Clear data for next player
+            player = None
+            score_rows = False
+            scores = []
+        elif score_rows:
+            # Scores
+            # print(f"Scores: {[x.value for x in r]}")
+            scores.append([x.value for x in r])
+        else:
+            pass
+except:
+    import traceback
+    print("Error encountered:")
+    traceback.print_exc()
+    print("\n\n!!! Make sure you've opened and saved the input XLSX in Excel since last time")
+    sys.exit(1)
 wb.close()
 wb = load_workbook(filename=args.spreadsheet)
 players_sheet = wb['Players']
 for player, data in final_players.items():
-    print(player, data)
+    # print(player, data)
     for k, v in data.items():
         players_sheet[k] = v
 # Save out spreadsheet
-wb.save("output.xlsx")   
+if args.o is None:
+    # Overwrite
+    print(f"Writing to {args.spreadsheet}")
+    wb.save(args.spreadsheet)
+else:
+    print(f"Writing to {args.o}")
+    wb.save(args.o)
