@@ -100,7 +100,7 @@ try:
                 # pp.pprint([x[1][1] for x in sorted_by_date])
                 # print(f"Will replace row {sorted_by_date[0][0]} with {scores[20][0]}")
                 row_replacements.append((scores[20][0], sorted_by_date[0][0]))
-                scores = [x[1] for x in sorted_by_date][1:20]
+                scores = [x[1] for x in sorted_by_date][1:]
             else:
                 # Knock off indexes
                 scores = [x[1] for x in scores]
